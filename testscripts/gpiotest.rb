@@ -8,10 +8,6 @@ require 'wiringpi'
 $io = WiringPi::GPIO.new
 $io.mode(0,OUTPUT)
 
-[0].each do |g| 
-        #io.read(MY_PIN)
-end
-
 $sp = SerialPort.new "/dev/ttyAMA0", 19200
 $sp.flush
 
@@ -21,7 +17,7 @@ def send_byte(byte,parity)
   if  (byte.to_s(2).count('1').even?) ^ (parity == 1)
     $sp.parity=SerialPort::EVEN
     puts "parity even"
-  else 
+  else
     $sp.parity=SerialPort::ODD
     puts "parity odd"
   end

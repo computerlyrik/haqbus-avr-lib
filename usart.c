@@ -170,53 +170,6 @@ void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
 RECEIVING OPERATIONS
 */
 
-//returnes 1 if ok, 0 if error, 
-uint8_t USART_receive_byte(uint8_t *byte, uint8_t wanted_parity)
-{
-  unsigned char status, resh, resl;
-  /* Wait for data to be received */
-  while ( !(UCSR0A & (1<<RXC0)) )
-  ;
-  /* Get status and 9th bit, then data */
-  /* from buffer */
-  status = UCSR0A;
-  resh = UCSR0B;
-  resl = UDR0;
-  
-  /* If error, return -1 */
-  if ( status & ((1<<DOR0)) ) return 0;
-  
-  resh = (resh >> 1) & 0x01;
-  if (wanted_parity != resh) {
-	led_g++;
-	return 0;
-  }
-  
-  byte = &resl;
-  return 1;
-}
-
-//try to get two bytes with parity 1
-uint16_t USART_receive_address(void)
-{
-  uint16_t address,fifo;
-  uint8_t byte;
-  while(1) {
-    led_w++;
-    fifo = fifo_get_wait(&infifo);
-    if (! 8>>fifo&0xFF) continue;
-    address = fifo<<8;
-
-    fifo = fifo_get_wait(&infifo);
-    if (! 8>>fifo&0xFF) continue;
-    address |= fifo&0xFF;
-    
-    return address;
-
-  }
-  return 0;
-}
-
 
 //return >=1 if succesful (data len), return 0 if not, e.g. crcr fails
 uint16_t USART_receive_package(uint16_t address, uint8_t *data)
