@@ -1,0 +1,6 @@
+errorled meanings:
+
+_r : sent byte
+_g : received byte
+_b : received byte for me 
+_w : CRC error
