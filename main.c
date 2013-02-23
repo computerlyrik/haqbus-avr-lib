@@ -9,6 +9,20 @@
 
 #include "main.h"
 
+#include "avr_mcu_section.h"
+AVR_MCU(F_CPU, "atmega88pa");
+AVR_MCU_SIMAVR_COMMAND(&GPIOR0);
+
+const struct avr_mmcu_vcd_trace_t _mytrace[]  _MMCU_ = {
+	{ AVR_MCU_VCD_SYMBOL("UDR0"), .what = (void*)&UDR0, },
+	{ AVR_MCU_VCD_SYMBOL("UDRE0"), .mask = (1 << UDRE0), .what = (void*)&UCSR0A, },
+	{ AVR_MCU_VCD_SYMBOL("GPIOR1"), .what = (void*)&GPIOR1, },
+	{ AVR_MCU_VCD_SYMBOL("Parity"), .mask = (1 << TXB80), .what = (void*)&UCSR0B, },
+	{ AVR_MCU_VCD_SYMBOL("SEND_ENABLE"), .mask = (1 << PORTD5), .what = (void*)&PORTD, },
+};
+
+
+
 
 uint8_t cycle = 0;
 
@@ -66,6 +80,9 @@ uint8_t request_address(void) {
 }
 int main(void)
 {
+	// this tell simavr to put the UART in loopback mode
+	GPIOR0 = SIMAVR_CMD_UART_LOOPBACK;
+
 	TCCR0B |= (1<<CS00);
 	TIMSK0 |= (1<<TOIE0);
 
@@ -75,6 +92,10 @@ int main(void)
 
 	USART_Init();
 	
+
+	// this tells simavr to start the trace
+	GPIOR0 = SIMAVR_CMD_VCD_START_TRACE;
+
 
 	sei();
 	
@@ -96,15 +117,10 @@ int main(void)
 	uint8_t buffer[] = {'f','o','o'};
 	uint8_t counter;
 
-	uint8_t buffer2[3];
-	uint16_t size;
+	USART_send_package(0,sizeof buffer,buffer);
 
-	while (1) {
-		size = USART_receive_package(0,buffer2);
-		_delay_ms(100);
-		USART_send_package(0,sizeof buffer,buffer);
-		led_r++;
-	}
+	uint16_t size = USART_receive_package(0,buffer);
+	USART_send_package(0,size,buffer);
 }
 
 
