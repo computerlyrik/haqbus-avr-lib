@@ -41,10 +41,34 @@ ISR (USART_UDRE_vect)
 }
 
 
-
+uint16_t rx_address;
+uint8_t rx_state; //0 no address, 1 one address byte, 2 full address
 ISR (USART_RX_vect)
 {
-	_inline_fifo_put (&infifo, UDR0);
+  led_g++;
+  unsigned char status, resh, resl;
+  /* Get status and 9th bit, then data */
+  /* from buffer */
+  status = UCSR0A;
+  resh = UCSR0B;
+  resl = UDR0;
+  /* If error, return -1 */
+  if ( status & ((1<<DOR0)) ) return 0;
+
+  resh = (resh >> 1) & 0x01;
+  if (resh == 1) {
+	led_w++;
+	if (rx_state == 0) { //get first part of address
+		rx_address = resl << 8;
+		rx_state++;
+	}
+	else if (rx_state == 1 ) { //get second part of address
+		rx_address |= resl;//TODO CHECK FOR OWN ADDRESS
+		rx_state++;
+	}
+  } else if (rx_state == 2) {
+	_inline_fifo_put (&infifo,UDR0);
+  }
 }
 
 
@@ -175,17 +199,20 @@ uint8_t USART_receive_byte(uint8_t *byte, uint8_t wanted_parity)
 //try to get two bytes with parity 1
 uint16_t USART_receive_address(void)
 {
-  uint8_t address1, address2;
+  uint16_t address,fifo;
   uint8_t byte;
   while(1) {
+    led_w++;
+    fifo = fifo_get_wait(&infifo);
+    if (! 8>>fifo&0xFF) continue;
+    address = fifo<<8;
+
+    fifo = fifo_get_wait(&infifo);
+    if (! 8>>fifo&0xFF) continue;
+    address |= fifo&0xFF;
     
-    if (USART_receive_byte(&byte,1)) {
-      address1 = byte;
-      if (USART_receive_byte(&byte, 1)) {
-        address2 = byte;
-        return (address1<<8|address2);
-      }
-    }
+    return address;
+
   }
   return 0;
 }
@@ -199,27 +226,23 @@ uint16_t USART_receive_package(uint16_t address, uint8_t *data)
   uint16_t data_len = 0, crc;
 
   while(1) {
-    if (USART_receive_address() != address) continue;
-    
-    led_b++;
-
-    if(! USART_receive_byte(&byte, 0)) return 0;
+    byte = fifo_get_wait(&infifo);
     data_len = (byte << 8);
-    if(! USART_receive_byte(&byte, 0)) return 0;
+    byte = fifo_get_wait(&infifo);
     data_len |= byte;
-    led_w++;
+
     uint8_t buffer[data_len];
     for (i = 0; i < data_len; i++) {
-      if(! USART_receive_byte(&byte, 0)) return 0;
-      buffer[i] = byte;
+	byte = fifo_get_wait(&infifo);
+	buffer[i] = byte;
     }
     
-    if(! USART_receive_byte(&byte, 0)) return 0;
+    byte = fifo_get_wait(&infifo);
     crc = byte<<8;
-    if(! USART_receive_byte(&byte, 0)) return 0;
+    byte = fifo_get_wait(&infifo);
     crc |= byte;
     
-    if (crc != checkcrc(buffer, sizeof buffer)) return 0;
+//    if (crc != checkcrc(buffer, sizeof buffer)) return 0;
     
     data = buffer;
     return data_len;

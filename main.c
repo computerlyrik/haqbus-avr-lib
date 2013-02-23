@@ -100,7 +100,7 @@ int main(void)
 	uint16_t size;
 
 	while (1) {
-		size = USART_receive_package(0,buffer2);
+//		size = USART_receive_package(0,buffer2);
 		_delay_ms(100);
 		USART_send_package(0,sizeof buffer,buffer);
 		led_r++;
