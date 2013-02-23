@@ -57,7 +57,7 @@ ISR (USART_RX_vect)
 
   resh = (resh >> 1) & 0x01;
   if (resh == 1) {
-	led_w++;
+	led_b++;
 	if (rx_state == 0) { //get first part of address
 		rx_address = resl << 8;
 		rx_state++;
@@ -67,6 +67,7 @@ ISR (USART_RX_vect)
 		rx_state++;
 	}
   } else if (rx_state == 2) {
+	led_w++;
 	_inline_fifo_put (&infifo,UDR0);
   }
 }
@@ -174,11 +175,9 @@ RECEIVING OPERATIONS
 //return >=1 if succesful (data len), return 0 if not, e.g. crcr fails
 uint16_t USART_receive_package(uint16_t address, uint8_t *data)
 {
-  PORTD &= ~(1<<PORTD5); //receive mode for MAX
-  uint8_t byte, i;
-  uint16_t data_len = 0, crc;
-
-  while(1) {
+PORTD &= ~(1<<PORTD5); //receive mode for MAX
+uint8_t byte;
+uint16_t data_len = 0, crc, i;
     byte = fifo_get_wait(&infifo);
     data_len = (byte << 8);
     byte = fifo_get_wait(&infifo);
@@ -199,5 +198,4 @@ uint16_t USART_receive_package(uint16_t address, uint8_t *data)
     
     data = buffer;
     return data_len;
-  }
 }
