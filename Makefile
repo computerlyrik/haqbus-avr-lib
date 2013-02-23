@@ -5,7 +5,7 @@ MCU_AVRDUDE = m88p
 
 
 #full swing, bod 4,7
-FUSE_SETTINGS = -U lfuse:w:0xd6:m -U hfuse:w:0xdc:m -U efuse:w:0xf9:m
+FUSE_SETTINGS = -U lfuse:w:0xd6:m -U hfuse:w:0x9c:m -U efuse:w:0x01:m
 
 
 ifeq ($(OSTYPE),)
@@ -65,10 +65,7 @@ clean:
 #########################################################################
 
 flash: all
-	avrdude -F -p $(MCU_AVRDUDE) -P usb -c dragon_isp    -U flash:w:$(PROJECT).hex
-	#avrdude -p $(MCU_AVRDUDE) -c usbtiny    -U flash:w:$(PROJECT).hex
-
+	avrdude -F -p $(MCU_AVRDUDE) -P usb -c dragon_dw    -U flash:w:$(PROJECT).hex
 fuse:
-	avrdude -F -p $(MCU_AVRDUDE) -P $(USB_DEVICE) -c stk500v2    $(FUSE_SETTINGS)
-	#avrdude -p $(MCU_AVRDUDE) -c usbtiny    $(FUSE_SETTINGS)
+	avrdude -F -p $(MCU_AVRDUDE) -P usb -c dragon_isp  $(FUSE_SETTINGS)
 
