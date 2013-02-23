@@ -6,37 +6,45 @@
 
 #include "main.h"
 #include "usart.h"
+#include "fifo.h"
 
-#define UART_RXBUFSIZE 250
 #define USE_2X
 
-volatile static uint8_t rxbuf0[UART_RXBUFSIZE];
-volatile static uint8_t *volatile rxhead0, *volatile rxtail0;
-//volatile uint8_t xon = 0;
+
+// FIFO-Objekte und Puffer für die Ein- und Ausgabe
+
+#define BUFSIZE_IN  0x40 //64
+uint16_t inbuf[BUFSIZE_IN];
+fifo_t infifo;
+
+#define BUFSIZE_OUT 0x40 //64
+uint16_t outbuf[BUFSIZE_OUT];
+fifo_t outfifo;
+
+
+ISR (USART_UDRE_vect)
+{
+
+    // Warten, bis UDR bereit ist für einen neuen Wert
+    if (outfifo.count > 0) {
+	PORTD |= (1<<PORTD5); //send mode for MAX
+	uint16_t fifo = _inline_fifo_get (&outfifo);
+	UCSR0B &= ~(1<<TXB80);
+	if ( (8>>fifo) & 0x01 ) //if parity is wanted
+		UCSR0B |= (1<<TXB80);
+	UDR0 = fifo & 0xFF;
+    }
+    else {
+        UCSR0B &= ~(1 << UDRIE0);
+	PORTD &= ~(1<<PORTD5); //back to receive mode for MAX
+   }
+}
+
 
 
 ISR (USART_RX_vect)
 {
-	UCSR0B &= ~(1 << RXCIE0);
-	asm volatile("sei");
-
-	int diff;
-	uint8_t c;
-	c=UDR0;
-	diff = rxhead0 - rxtail0;
-	if (diff < 0) diff += UART_RXBUFSIZE;
-	if (diff < UART_RXBUFSIZE -1)
-	{
-		*rxhead0 = c;
-		++rxhead0;
-		if (rxhead0 == (rxbuf0 + UART_RXBUFSIZE)) rxhead0 = rxbuf0;
-//		if((diff > 100)&&(xon==0))
-//		{
-//			xon=1;
-//			//set the CTS pin
-//		}
-	}
-	UCSR0B |= (1 << RXCIE0);
+	_inline_fifo_put (&infifo, UDR0);
 }
 
 
@@ -81,21 +89,16 @@ void USART_Init (void)
 	//Enable Receive and transmit
 	UCSR0B |= (1 << RXEN0) | (1 << TXEN0);
 	
-	//Enable Interrupts
-	//UCSR0B |= (1 << RXCIE0);
+	//Enable Receiver Interrupts
+	UCSR0B |= (1 << RXCIE0);
 
-
-	rxhead0 = rxtail0 = rxbuf0;
+	fifo_init (&infifo,   inbuf, BUFSIZE_IN);
+        fifo_init (&outfifo, outbuf, BUFSIZE_OUT);
 
 }
 
 
 
-void USART_putc (char c)
-{
-	loop_until_bit_is_set(UCSR0A, UDRE0);
-	UDR0 = c;
-}
 /*
 CRC CHECKER
 */
@@ -114,57 +117,28 @@ uint8_t checkcrc(uint8_t data[], uint16_t len)
 SENDING OPERATIONS
 */
 
-void USART_send_byte (unsigned char data, unsigned char parity)
-{
-    // Warten, bis UDR bereit ist für einen neuen Wert
-    while (!(UCSR0A & (1 << UDRE0)))
-        ;
-    UCSR0B &= ~(1<<TXB80);
-    if ( parity )
-      UCSR0B |= (1<<TXB80);
-
-    // UDR schreiben startet die Übertragung      
-    UDR0 = data;
-}
-
-void USART_send (uint16_t *s, unsigned n) {
-  //  loop until *s != NULL
-  if (n<5) return; //not an package
-
-  //send address
-  USART_send_byte(*s,1);
-  n--; s++;
-  USART_send_byte(*s,1);
-  n--; s++;
-  
-  while (n--) {
-    USART_send_byte(*s,0);
-    s++;
-  }
-}
-
 void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
 
-  PORTD |= (1<<PORTD5); //send mode for MAX
   uint16_t crc = checkcrc(data, data_len);
   
   //send address
-  USART_send_byte(address>>8,1);
-  USART_send_byte(address,1);
+  fifo_put(&outfifo,1<<8|address>>8);
+  fifo_put(&outfifo,1<<8|address&0xFF);
   
   //send data_len
-  USART_send_byte(data_len>>8,0);
-  USART_send_byte(data_len,0);
+  fifo_put(&outfifo,data_len>>8);
+  fifo_put(&outfifo,data_len&0xFF);
   
   //send data
   uint16_t i = data_len;
   while (i--) {
-    USART_send_byte(data[data_len-1-i],0);
+    fifo_put(&outfifo,data[data_len-1-i]);
   }
   
-  USART_send_byte(crc>>8,0);
-  USART_send_byte(crc,0);
+  fifo_put(&outfifo,crc>>8);
+  fifo_put(&outfifo,crc&0xFF);
 
+  UCSR0B |= (1 << UDRIE0);
 }
 
 
