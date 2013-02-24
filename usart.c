@@ -45,6 +45,7 @@ uint16_t rx_address;
 uint8_t rx_state; //0 no address, 1 one address byte, 2 full address
 ISR (USART_RX_vect)
 {
+	UCSR0B &= ~(1 << RXCIE0); //disable interrupt
 
 	unsigned char status, resh, resl;
 	/* Get status and 9th bit, then data */
@@ -52,12 +53,13 @@ ISR (USART_RX_vect)
 	status = UCSR0A;
 	resh = UCSR0B;
 	resl = UDR0;
+
 	/* If error, return -1 */
 	if ( status & ((1<<DOR0)) ) return 0; //TODO ADD MORE ERRORCORRECTION
 
 	resh = (resh >> 1) & 0x01;
 	if (resh == 1) { //received an address
-		if(rx_state > 2) rx_state=0;
+		if(rx_state == 2) rx_state=0;
 		if (rx_state == 0) { //get first part of address
 			rx_address = resl << 8;
 			rx_state++;
@@ -66,9 +68,14 @@ ISR (USART_RX_vect)
 			rx_address |= resl;//TODO CHECK FOR OWN ADDRESS
 			rx_state++;
 		}
-	} else if (rx_state == 2) {
-		_inline_fifo_put (&infifo,UDR0);
+	} else {
+		if (rx_state == 2)
+			_inline_fifo_put (&infifo,UDR0);
+		else
+			rx_state == 0;
 	}
+	UCSR0B |= (1 << RXCIE0); //reenable Interrupt
+
 }
 
 
@@ -162,6 +169,7 @@ void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
   fifo_put(&outfifo,crc>>8);
   fifo_put(&outfifo,crc&0xFF);
 
+	//init sending of package
   UCSR0B |= (1 << UDRIE0);
 }
 
@@ -176,18 +184,35 @@ uint16_t USART_receive_package(uint16_t address, uint8_t *data)
 {
 	PORTD &= ~(1<<PORTD5); //receive mode for MAX
 	uint8_t byte;
-	uint16_t data_len = 0, crc, i;
+	uint16_t data_len = 0;
+	uint16_t crc, i;
+
 	byte = fifo_get_wait(&infifo);
 	data_len = (byte << 8);
+	for (i = 0; i < byte; i++) {
+		led_r=200;
+		_delay_ms(100);
+		led_r=0;
+		_delay_ms(100);
+	}
+
 	byte = fifo_get_wait(&infifo);
 	data_len |= byte;
+
+	for (i = 0; i < byte; i++) {
+		led_g=200;
+		_delay_ms(100);
+		led_g=0;
+		_delay_ms(100);
+	}
 	led_r++;
+
 	uint8_t buffer[data_len];
 	for (i = 0; i < data_len; i++) {
-	led_g=200;
-	_delay_ms(100);
-	led_g=0;
-	_delay_ms(100);
+		led_g=200;
+		_delay_ms(100);
+		led_g=0;
+		_delay_ms(100);
 		byte = fifo_get_wait(&infifo);
 		buffer[i] = byte;
     }
