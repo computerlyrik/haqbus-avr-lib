@@ -14,7 +14,7 @@
 // FIFO-Objekte und Puffer für die Ein- und Ausgabe
 
 #define BUFSIZE_IN  0x40 //64
-uint16_t inbuf[BUFSIZE_IN];
+uint8_t inbuf[BUFSIZE_IN];
 fifo_t infifo;
 
 #define BUFSIZE_OUT 0x40 //64
@@ -25,34 +25,34 @@ fifo_t outfifo;
 ISR (USART_UDRE_vect)
 {
 
-    // Warten, bis UDR bereit ist für einen neuen Wert
-    if (outfifo.count > 0) {
-	PORTD |= (1<<PORTD5); //send mode for MAX
-	uint16_t fifo = _inline_fifo_get (&outfifo);
-	UCSR0B &= ~(1<<TXB80);
-	if ( (8>>fifo) & 0x01 ) //if parity is wanted
-		UCSR0B |= (1<<TXB80);
-	UDR0 = fifo & 0xFF;
-    }
-    else {
-        UCSR0B &= ~(1 << UDRIE0);
-	PORTD &= ~(1<<PORTD5); //back to receive mode for MAX
-   }
+	// Warten, bis UDR bereit ist für einen neuen Wert
+	if (outfifo.count > 0) {
+		PORTD |= (1<<PORTD5); //send mode for MAX
+		uint16_t fifo = _inline_fifo_get (&outfifo);
+		UCSR0B &= ~(1<<TXB80);
+		if ( (8>>fifo) & 0x01 ) //if parity is wanted
+			UCSR0B |= (1<<TXB80);
+		UDR0 = fifo & 0xFF;
+	}
+	else {
+		UCSR0B &= ~(1 << UDRIE0);
+		PORTD &= ~(1<<PORTD5); //back to receive mode for MAX
+	}
 }
 
 
 uint16_t rx_address;
 uint8_t rx_state; //0 no address, 1 one address byte, 2 full address
+unsigned char status, resh, resl;
 ISR (USART_RX_vect)
 {
 	UCSR0B &= ~(1 << RXCIE0); //disable interrupt
-
-	unsigned char status, resh, resl;
 	/* Get status and 9th bit, then data */
 	/* from buffer */
 	status = UCSR0A;
 	resh = UCSR0B;
 	resl = UDR0;
+	led_w = resl;
 
 	/* If error, return -1 */
 	if ( status & ((1<<DOR0)) ) return 0; //TODO ADD MORE ERRORCORRECTION
@@ -124,7 +124,7 @@ void USART_Init (void)
 	UCSR0B |= (1 << RXCIE0);
 
 	fifo_init (&infifo,   inbuf, BUFSIZE_IN);
-        fifo_init (&outfifo, outbuf, BUFSIZE_OUT);
+	fifo_init (&outfifo, outbuf, BUFSIZE_OUT);
 
 }
 
@@ -195,7 +195,7 @@ uint16_t USART_receive_package(uint16_t address, uint8_t *data)
 		led_r=0;
 		_delay_ms(100);
 	}
-
+	led_r++;
 	byte = fifo_get_wait(&infifo);
 	data_len |= byte;
 
@@ -205,16 +205,16 @@ uint16_t USART_receive_package(uint16_t address, uint8_t *data)
 		led_g=0;
 		_delay_ms(100);
 	}
-	led_r++;
+	led_g++;
 
 	uint8_t buffer[data_len];
 	for (i = 0; i < data_len; i++) {
-		led_g=200;
-		_delay_ms(100);
-		led_g=0;
-		_delay_ms(100);
 		byte = fifo_get_wait(&infifo);
 		buffer[i] = byte;
+		led_b=200;
+		_delay_ms(100);
+		led_b=0;
+		_delay_ms(100);
     }
 	led_b++;
     byte = fifo_get_wait(&infifo);
