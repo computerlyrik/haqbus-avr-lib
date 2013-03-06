@@ -190,7 +190,7 @@ uint8_t USART_receive_byte(uint8_t *byte, uint8_t wanted_parity)
   
   resh = (resh >> 1) & 0x01;
   if (wanted_parity != resh) {
-	led_g++;
+//	led_g++;
 	return 0;
   }
   
@@ -227,13 +227,13 @@ uint16_t USART_receive_package(uint16_t address, uint8_t *data)
   while(1) {
     if (USART_receive_address() != address) continue;
     
-    led_b++;
+//    led_b++;
 
     if(! USART_receive_byte(&byte, 0)) return 0;
     data_len = (byte << 8);
     if(! USART_receive_byte(&byte, 0)) return 0;
     data_len |= byte;
-    led_w++;
+//    led_w++;
     uint8_t buffer[data_len];
     for (i = 0; i < data_len; i++) {
       if(! USART_receive_byte(&byte, 0)) return 0;
