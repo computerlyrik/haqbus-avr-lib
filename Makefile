@@ -65,7 +65,7 @@ clean:
 #########################################################################
 
 flash: all
-	avrdude -F -p $(MCU_AVRDUDE) -P usb -c dragon_dw    -U flash:w:$(PROJECT).hex
+	avrdude -F -p $(MCU_AVRDUDE) -P usb -c dragon_isp    -U flash:w:$(PROJECT).hex
 fuse:
 	avrdude -F -p $(MCU_AVRDUDE) -P usb -c dragon_isp  $(FUSE_SETTINGS)
 

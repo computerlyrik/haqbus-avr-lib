@@ -37,33 +37,6 @@ ISR (TIMER0_OVF_vect)
 					|	((led_r < cycle)<<PORTC5));
 }
 
-uint8_t request_address(void) {
-	uint8_t count = 23;
-	uint8_t id = rand() % 255;
-        uint16_t time;
-	while (count--) {
-		led_w = count; //DEBUG
-		time = count*count;
-		while (time--) _delay_ms(10); //make sleeping longer each time
-		led_b = 10;
-		//send packet for address request
-		uint8_t buffer[] = {id};
-		USART_send_package(0,sizeof buffer,buffer);
-		led_g = 10; //DEBUG
-				
-		//receive data packet from server with address response
-		if ( ! USART_receive_package(0,buffer)) continue;
-		led_w = 40; //DEBUG
-		if (buffer[0] == id) {
-			led_w = 0; //DEBUG
-			address = (buffer[1]<<8|buffer[2]);
-			//send ack
-			USART_send_package(0,sizeof buffer,buffer);
-			return 1;
-		}
-	}
-	return 0;
-}
 int main(void)
 {
 	TCCR0B |= (1<<CS00);
@@ -78,12 +51,6 @@ int main(void)
 
 	sei();
 	
-
-	led_r = 0;
-	led_g = 0;
-	led_b = 0;
-	led_w = 0;
-	
 	//init random generator
 	unsigned short seed = 0;
 	unsigned short *p = (unsigned short*) (RAMEND+1);
@@ -96,14 +63,17 @@ int main(void)
 	uint8_t buffer[] = {'f','o','o'};
 	uint8_t counter;
 
-	uint8_t buffer2[3];
+	uint8_t rgbw[4];
 	uint16_t size;
 
 	while (1) {
-		size = USART_receive_package(0,buffer2);
-		_delay_ms(100);
-		USART_send_package(0,sizeof buffer,buffer);
-		led_r++;
+		size = USART_receive_package(0,rgbw);
+//        led_r = rgbw[0];
+//        led_g = rgbw[1];
+//        led_b = rgbw[2];
+//        led_w = rgbw[3];
+	//	USART_send_package(0,size,buffer);
+//led_w++;
 	}
 }
 
