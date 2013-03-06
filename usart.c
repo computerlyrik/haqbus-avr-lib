@@ -117,9 +117,13 @@ uint16_t USART_receive_package(uint16_t address, uint8_t *data)
 {
 	PORTD &= ~(1<<PORTD5); //receive mode for MAX
 	uint8_t byte, parity;
-	uint16_t crc, i, myaddress = 0, data_len; 
-
+	uint16_t crc, myaddress = 0, data_len; 
+    uint16_t i,j;
 while(1) {
+led_r=0;
+led_g=0;
+led_b=0;
+led_w=0;
 
 parity = fifo_get_wait(&infifo);
 if (!parity) continue;
@@ -138,38 +142,43 @@ parity = fifo_get_wait(&infifo);
 if (parity) continue;
 byte = fifo_get_wait(&infifo);
 data_len = byte << 8;
-for (i = 0; i < byte; i++) {
-          led_g=20;
-               _delay_ms(100);
-               led_g=0;
-               _delay_ms(100);
-       }
-
 
 parity = fifo_get_wait(&infifo);
 if (parity) continue;
 byte = fifo_get_wait(&infifo);
 data_len |= byte;
-for (i = 0; i < byte; i++) {
-          led_g=20;
-               _delay_ms(100);
-               led_g=0;
-               _delay_ms(100);
-       }
-
 
 led_g=10;
 //DATA
 uint8_t buffer[data_len];
+
 for (i = 0; i<data_len; i++) {
+   led_r=i*10;
+_delay_ms(100);
  parity = fifo_get_wait(&infifo);
  if (parity) break;
  byte = fifo_get_wait(&infifo);
  buffer[i] = byte;
 }
-if (i != (data_len-1) ) continue;
+for (j = 0; j < data_len; j++) {
+          led_w=20;
+               _delay_ms(100);
+               led_w=0;
+               _delay_ms(100);
+       }
+_delay_ms(200);
+for (j = 0; j < i; j++) {
+          led_w=20;
+               _delay_ms(100);
+               led_w=0;
+               _delay_ms(100);
+       }
+
+
+if (i != data_len ) continue;
  
 led_b=10;
+_delay_ms(200);
 //CRC
 parity = fifo_get_wait(&infifo);
 if (parity) continue;
@@ -179,7 +188,8 @@ parity = fifo_get_wait(&infifo);
 if (parity) continue;
 byte = fifo_get_wait(&infifo);
 crc |= byte;
-
+led_w=10;
+_delay_ms(200);
 data = buffer;
 return data_len;
  }
