@@ -6,37 +6,76 @@
 
 #include "main.h"
 #include "usart.h"
+#include "fifo.h"
 
-#define UART_RXBUFSIZE 250
 #define USE_2X
 
-volatile static uint8_t rxbuf0[UART_RXBUFSIZE];
-volatile static uint8_t *volatile rxhead0, *volatile rxtail0;
-//volatile uint8_t xon = 0;
+
+// FIFO-Objekte und Puffer für die Ein- und Ausgabe
+
+#define BUFSIZE_IN  0x40 //64
+uint8_t inbuf[BUFSIZE_IN];
+fifo_t infifo;
+
+#define BUFSIZE_OUT 0x40 //64
+uint16_t outbuf[BUFSIZE_OUT];
+fifo_t outfifo;
 
 
+ISR (USART_UDRE_vect)
+{
+
+	// Warten, bis UDR bereit ist für einen neuen Wert
+	if (outfifo.count > 0) {
+		PORTD |= (1<<PORTD5); //send mode for MAX
+		uint16_t fifo = _inline_fifo_get (&outfifo);
+		UCSR0B &= ~(1<<TXB80);
+		if ( (8>>fifo) & 0x01 ) //if parity is wanted
+			UCSR0B |= (1<<TXB80);
+		UDR0 = fifo & 0xFF;
+	}
+	else {
+		UCSR0B &= ~(1 << UDRIE0);
+		PORTD &= ~(1<<PORTD5); //back to receive mode for MAX
+	}
+}
+
+
+uint16_t rx_address;
+uint8_t rx_state; //0 no address, 1 one address byte, 2 full address
+unsigned char status, resh, resl;
 ISR (USART_RX_vect)
 {
-	UCSR0B &= ~(1 << RXCIE0);
-	asm volatile("sei");
+	UCSR0B &= ~(1 << RXCIE0); //disable interrupt
+	/* Get status and 9th bit, then data */
+	/* from buffer */
+	status = UCSR0A;
+	resh = UCSR0B;
+	resl = UDR0;
+	led_w = resl;
 
-	int diff;
-	uint8_t c;
-	c=UDR0;
-	diff = rxhead0 - rxtail0;
-	if (diff < 0) diff += UART_RXBUFSIZE;
-	if (diff < UART_RXBUFSIZE -1)
-	{
-		*rxhead0 = c;
-		++rxhead0;
-		if (rxhead0 == (rxbuf0 + UART_RXBUFSIZE)) rxhead0 = rxbuf0;
-//		if((diff > 100)&&(xon==0))
-//		{
-//			xon=1;
-//			//set the CTS pin
-//		}
+	/* If error, return -1 */
+	if ( status & ((1<<DOR0)) ) return 0; //TODO ADD MORE ERRORCORRECTION
+
+	resh = (resh >> 1) & 0x01;
+	if (resh == 1) { //received an address
+		if(rx_state == 2) rx_state=0;
+		if (rx_state == 0) { //get first part of address
+			rx_address = resl << 8;
+			rx_state++;
+		}
+		else if (rx_state == 1 ) { //get second part of address
+			rx_address |= resl;//TODO CHECK FOR OWN ADDRESS
+			rx_state++;
+		}
+	} else {
+		if (rx_state == 2)
+			_inline_fifo_put (&infifo,UDR0);
+		else
+			rx_state == 0;
 	}
-	UCSR0B |= (1 << RXCIE0);
+	UCSR0B |= (1 << RXCIE0); //reenable Interrupt
+
 }
 
 
@@ -81,21 +120,16 @@ void USART_Init (void)
 	//Enable Receive and transmit
 	UCSR0B |= (1 << RXEN0) | (1 << TXEN0);
 	
-	//Enable Interrupts
-	//UCSR0B |= (1 << RXCIE0);
+	//Enable Receiver Interrupts
+	UCSR0B |= (1 << RXCIE0);
 
-
-	rxhead0 = rxtail0 = rxbuf0;
+	fifo_init (&infifo,   inbuf, BUFSIZE_IN);
+	fifo_init (&outfifo, outbuf, BUFSIZE_OUT);
 
 }
 
 
 
-void USART_putc (char c)
-{
-	loop_until_bit_is_set(UCSR0A, UDRE0);
-	UDR0 = c;
-}
 /*
 CRC CHECKER
 */
@@ -114,57 +148,29 @@ uint8_t checkcrc(uint8_t data[], uint16_t len)
 SENDING OPERATIONS
 */
 
-void USART_send_byte (unsigned char data, unsigned char parity)
-{
-    // Warten, bis UDR bereit ist für einen neuen Wert
-    while (!(UCSR0A & (1 << UDRE0)))
-        ;
-    UCSR0B &= ~(1<<TXB80);
-    if ( parity )
-      UCSR0B |= (1<<TXB80);
-
-    // UDR schreiben startet die Übertragung      
-    UDR0 = data;
-}
-
-void USART_send (uint16_t *s, unsigned n) {
-  //  loop until *s != NULL
-  if (n<5) return; //not an package
-
-  //send address
-  USART_send_byte(*s,1);
-  n--; s++;
-  USART_send_byte(*s,1);
-  n--; s++;
-  
-  while (n--) {
-    USART_send_byte(*s,0);
-    s++;
-  }
-}
-
 void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
 
-  PORTD |= (1<<PORTD5); //send mode for MAX
   uint16_t crc = checkcrc(data, data_len);
   
   //send address
-  USART_send_byte(address>>8,1);
-  USART_send_byte(address,1);
+  fifo_put(&outfifo,1<<8|address>>8);
+  fifo_put(&outfifo,1<<8|address&0xFF);
   
   //send data_len
-  USART_send_byte(data_len>>8,0);
-  USART_send_byte(data_len,0);
+  fifo_put(&outfifo,data_len>>8);
+  fifo_put(&outfifo,data_len&0xFF);
   
   //send data
   uint16_t i = data_len;
   while (i--) {
-    USART_send_byte(data[data_len-1-i],0);
+    fifo_put(&outfifo,data[data_len-1-i]);
   }
   
-  USART_send_byte(crc>>8,0);
-  USART_send_byte(crc,0);
+  fifo_put(&outfifo,crc>>8);
+  fifo_put(&outfifo,crc&0xFF);
 
+	//init sending of package
+  UCSR0B |= (1 << UDRIE0);
 }
 
 
@@ -172,82 +178,52 @@ void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
 RECEIVING OPERATIONS
 */
 
-//returnes 1 if ok, 0 if error, 
-uint8_t USART_receive_byte(uint8_t *byte, uint8_t wanted_parity)
-{
-  unsigned char status, resh, resl;
-  /* Wait for data to be received */
-  while ( !(UCSR0A & (1<<RXC0)) )
-  ;
-  /* Get status and 9th bit, then data */
-  /* from buffer */
-  status = UCSR0A;
-  resh = UCSR0B;
-  resl = UDR0;
-  
-  /* If error, return -1 */
-  if ( status & ((1<<DOR0)) ) return 0;
-  
-  resh = (resh >> 1) & 0x01;
-  if (wanted_parity != resh) {
-	led_g++;
-	return 0;
-  }
-  
-  byte = &resl;
-  return 1;
-}
-
-//try to get two bytes with parity 1
-uint16_t USART_receive_address(void)
-{
-  uint8_t address1, address2;
-  uint8_t byte;
-  while(1) {
-    
-    if (USART_receive_byte(&byte,1)) {
-      address1 = byte;
-      if (USART_receive_byte(&byte, 1)) {
-        address2 = byte;
-        return (address1<<8|address2);
-      }
-    }
-  }
-  return 0;
-}
-
 
 //return >=1 if succesful (data len), return 0 if not, e.g. crcr fails
 uint16_t USART_receive_package(uint16_t address, uint8_t *data)
 {
-  PORTD &= ~(1<<PORTD5); //receive mode for MAX
-  uint8_t byte, i;
-  uint16_t data_len = 0, crc;
+	PORTD &= ~(1<<PORTD5); //receive mode for MAX
+	uint8_t byte;
+	uint16_t data_len = 0;
+	uint16_t crc, i;
 
-  while(1) {
-    if (USART_receive_address() != address) continue;
-    
-    led_b++;
+	byte = fifo_get_wait(&infifo);
+	data_len = (byte << 8);
+	for (i = 0; i < byte; i++) {
+		led_r=200;
+		_delay_ms(100);
+		led_r=0;
+		_delay_ms(100);
+	}
+	led_r++;
+	byte = fifo_get_wait(&infifo);
+	data_len |= byte;
 
-    if(! USART_receive_byte(&byte, 0)) return 0;
-    data_len = (byte << 8);
-    if(! USART_receive_byte(&byte, 0)) return 0;
-    data_len |= byte;
-    led_w++;
-    uint8_t buffer[data_len];
-    for (i = 0; i < data_len; i++) {
-      if(! USART_receive_byte(&byte, 0)) return 0;
-      buffer[i] = byte;
+	for (i = 0; i < byte; i++) {
+		led_g=200;
+		_delay_ms(100);
+		led_g=0;
+		_delay_ms(100);
+	}
+	led_g++;
+
+	uint8_t buffer[data_len];
+	for (i = 0; i < data_len; i++) {
+		byte = fifo_get_wait(&infifo);
+		buffer[i] = byte;
+		led_b=200;
+		_delay_ms(100);
+		led_b=0;
+		_delay_ms(100);
     }
-    
-    if(! USART_receive_byte(&byte, 0)) return 0;
+	led_b++;
+    byte = fifo_get_wait(&infifo);
     crc = byte<<8;
-    if(! USART_receive_byte(&byte, 0)) return 0;
+    byte = fifo_get_wait(&infifo);
     crc |= byte;
-    
-    if (crc != checkcrc(buffer, sizeof buffer)) return 0;
-    
+	led_w++;
+//    if (crc != checkcrc(buffer, sizeof buffer)) return 0;
+
     data = buffer;
     return data_len;
-  }
 }

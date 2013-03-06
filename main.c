@@ -78,12 +78,6 @@ int main(void)
 
 	sei();
 	
-
-	led_r = 0;
-	led_g = 0;
-	led_b = 0;
-	led_w = 0;
-	
 	//init random generator
 	unsigned short seed = 0;
 	unsigned short *p = (unsigned short*) (RAMEND+1);
@@ -100,10 +94,9 @@ int main(void)
 	uint16_t size;
 
 	while (1) {
-		size = USART_receive_package(0,buffer2);
-		_delay_ms(100);
-		USART_send_package(0,sizeof buffer,buffer);
-		led_r++;
+		size = USART_receive_package(0,buffer);
+		USART_send_package(0,size,buffer);
+
 	}
 }
 
