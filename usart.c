@@ -13,7 +13,7 @@
 
 // FIFO-Objekte und Puffer für die Ein- und Ausgabe
 
-#define BUFSIZE_IN  0x40 //64
+#define BUFSIZE_IN  0xFF //256
 uint8_t inbuf[BUFSIZE_IN];
 fifo_t infifo;
 
