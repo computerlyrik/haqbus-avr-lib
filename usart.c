@@ -29,8 +29,8 @@ ISR (USART_RX_vect)
 	resl = UDR0;
 
 	resh = (resh >> 1) & 0x01;
-    _inline_fifo_put (&infifo, resl);
     _inline_fifo_put (&infifo, resh);
+    _inline_fifo_put (&infifo, resl);
 
 	UCSR0B |= (1 << RXCIE0); //reenable Interrupt
 
@@ -116,41 +116,71 @@ RECEIVING OPERATIONS
 uint16_t USART_receive_package(uint16_t address, uint8_t *data)
 {
 	PORTD &= ~(1<<PORTD5); //receive mode for MAX
-	uint16_t data_len = 0;
 	uint8_t byte, parity;
-	uint16_t crc, i;
+	uint16_t crc, i, myaddress = 0, data_len; 
 
 while(1) {
-byte = fifo_get_wait(&infifo);
+
 parity = fifo_get_wait(&infifo);
-led_r=20;
-led_w=parity*10;
-_delay_ms(100);
+if (!parity) continue;
+byte = fifo_get_wait(&infifo);
+address = byte << 8;
+
+parity = fifo_get_wait(&infifo);
+if (!parity) continue;
+byte = fifo_get_wait(&infifo);
+address |= byte;
+
+if (! address == myaddress) continue;
+led_r = 10;
+//DATA_LEN
+parity = fifo_get_wait(&infifo);
+if (parity) continue;
+byte = fifo_get_wait(&infifo);
+data_len = byte << 8;
 for (i = 0; i < byte; i++) {
           led_g=20;
                _delay_ms(100);
                led_g=0;
                _delay_ms(100);
        }
-led_r=0;
-_delay_ms(100);
+
+
+parity = fifo_get_wait(&infifo);
+if (parity) continue;
+byte = fifo_get_wait(&infifo);
+data_len |= byte;
+for (i = 0; i < byte; i++) {
+          led_g=20;
+               _delay_ms(100);
+               led_g=0;
+               _delay_ms(100);
+       }
+
+
+led_g=10;
+//DATA
+uint8_t buffer[data_len];
+for (i = 0; i<data_len; i++) {
+ parity = fifo_get_wait(&infifo);
+ if (parity) break;
+ byte = fifo_get_wait(&infifo);
+ buffer[i] = byte;
 }
+if (i != (data_len-1) ) continue;
+ 
+led_b=10;
+//CRC
+parity = fifo_get_wait(&infifo);
+if (parity) continue;
+byte = fifo_get_wait(&infifo);
+crc = byte<<8;
+parity = fifo_get_wait(&infifo);
+if (parity) continue;
+byte = fifo_get_wait(&infifo);
+crc |= byte;
 
-led_g = 20;
-	byte = fifo_get_wait(&infifo);
-	data_len = (byte << 8);
-
-		byte = fifo_get_wait(&infifo);
-	data_len |= byte;
-
-	uint8_t buffer[data_len];
-    byte = fifo_get_wait(&infifo);
-    crc = byte<<8;
-    byte = fifo_get_wait(&infifo);
-    crc |= byte;
-//    if (crc != checkcrc(buffer, sizeof buffer)) return 0;
-
-    data = buffer;
-led_g=0;
-    return data_len;
+data = buffer;
+return data_len;
+ }
 }
