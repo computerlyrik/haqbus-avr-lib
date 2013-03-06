@@ -178,43 +178,47 @@ void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
 RECEIVING OPERATIONS
 */
 
+//try to get two bytes with parity 1
+uint16_t USART_receive_address(void)
+{
+  uint8_t address1, address2;
+  uint8_t byte;
+  while(1) {
+    
+    if (USART_receive_byte(&byte,1)) {
+      address1 = byte;
+      if (USART_receive_byte(&byte, 1)) {
+        address2 = byte;
+        return (address1<<8|address2);
+      }
+    }
+  }
+  return 0;
+}
+
+>>>>>>> 1122d9d2bac2f76e104dc8e79407652cf77c6e66
 
 //return >=1 if succesful (data len), return 0 if not, e.g. crcr fails
 uint16_t USART_receive_package(uint16_t address, uint8_t *data)
 {
-	PORTD &= ~(1<<PORTD5); //receive mode for MAX
-	uint8_t byte;
-	uint16_t data_len = 0;
-	uint16_t crc, i;
+  PORTD &= ~(1<<PORTD5); //receive mode for MAX
+  uint8_t byte, i;
+  uint16_t data_len = 0, crc;
 
-	byte = fifo_get_wait(&infifo);
-	data_len = (byte << 8);
-	for (i = 0; i < byte; i++) {
-		led_r=200;
-		_delay_ms(100);
-		led_r=0;
-		_delay_ms(100);
-	}
-	led_r++;
-	byte = fifo_get_wait(&infifo);
-	data_len |= byte;
+  while(1) {
+    if (USART_receive_address() != address) continue;
+    
+//    led_b++;
 
-	for (i = 0; i < byte; i++) {
-		led_g=200;
-		_delay_ms(100);
-		led_g=0;
-		_delay_ms(100);
-	}
-	led_g++;
-
-	uint8_t buffer[data_len];
-	for (i = 0; i < data_len; i++) {
-		byte = fifo_get_wait(&infifo);
-		buffer[i] = byte;
-		led_b=200;
-		_delay_ms(100);
-		led_b=0;
-		_delay_ms(100);
+    if(! USART_receive_byte(&byte, 0)) return 0;
+    data_len = (byte << 8);
+    if(! USART_receive_byte(&byte, 0)) return 0;
+    data_len |= byte;
+//    led_w++;
+    uint8_t buffer[data_len];
+    for (i = 0; i < data_len; i++) {
+      if(! USART_receive_byte(&byte, 0)) return 0;
+      buffer[i] = byte;
     }
 	led_b++;
     byte = fifo_get_wait(&infifo);
