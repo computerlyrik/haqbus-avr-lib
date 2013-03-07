@@ -4,7 +4,7 @@
 #include <avr/interrupt.h>
 #include <util/crc16.h>
 
-#include "main.h"
+//#include "main.h"
 #include "usart.h"
 #include "fifo.h"
 
@@ -13,7 +13,7 @@
 
 // FIFO-Objekte und Puffer für die Ein- und Ausgabe
 
-#define BUFSIZE_IN  0x40 //64
+#define BUFSIZE_IN  0xFF //255 byte
 uint8_t inbuf[BUFSIZE_IN];
 fifo_t infifo;
 
@@ -47,6 +47,7 @@ unsigned char status, resh, resl;
 ISR (USART_RX_vect)
 {
 	UCSR0B &= ~(1 << RXCIE0); //disable interrupt
+    unsigned char status, resh, resl;
 	/* Get status and 9th bit, then data */
 	/* from buffer */
 	status = UCSR0A;
@@ -58,22 +59,9 @@ ISR (USART_RX_vect)
 	if ( status & ((1<<DOR0)) ) return 0; //TODO ADD MORE ERRORCORRECTION
 
 	resh = (resh >> 1) & 0x01;
-	if (resh == 1) { //received an address
-		if(rx_state == 2) rx_state=0;
-		if (rx_state == 0) { //get first part of address
-			rx_address = resl << 8;
-			rx_state++;
-		}
-		else if (rx_state == 1 ) { //get second part of address
-			rx_address |= resl;//TODO CHECK FOR OWN ADDRESS
-			rx_state++;
-		}
-	} else {
-		if (rx_state == 2)
-			_inline_fifo_put (&infifo,UDR0);
-		else
-			rx_state == 0;
-	}
+    _inline_fifo_put (&infifo, resh);
+    _inline_fifo_put (&infifo, resl);
+
 	UCSR0B |= (1 << RXCIE0); //reenable Interrupt
 
 }
@@ -119,6 +107,7 @@ void USART_Init (void)
 
 	//Enable Receive and transmit
 	UCSR0B |= (1 << RXEN0) | (1 << TXEN0);
+	UCSR0B &= ~(1 << TXEN0); //disable transmit
 	
 	//Enable Receiver Interrupts
 	UCSR0B |= (1 << RXCIE0);
@@ -148,86 +137,66 @@ uint8_t checkcrc(uint8_t data[], uint16_t len)
 SENDING OPERATIONS
 */
 
-void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
-
-  uint16_t crc = checkcrc(data, data_len);
-  
-  //send address
-  fifo_put(&outfifo,1<<8|address>>8);
-  fifo_put(&outfifo,1<<8|address&0xFF);
-  
-  //send data_len
-  fifo_put(&outfifo,data_len>>8);
-  fifo_put(&outfifo,data_len&0xFF);
-  
-  //send data
-  uint16_t i = data_len;
-  while (i--) {
-    fifo_put(&outfifo,data[data_len-1-i]);
-  }
-  
-  fifo_put(&outfifo,crc>>8);
-  fifo_put(&outfifo,crc&0xFF);
-
-	//init sending of package
-  UCSR0B |= (1 << UDRIE0);
-}
-
 
 /*
 RECEIVING OPERATIONS
 */
 
-//try to get two bytes with parity 1
-uint16_t USART_receive_address(void)
-{
-  uint8_t address1, address2;
-  uint8_t byte;
-  while(1) {
-    
-    if (USART_receive_byte(&byte,1)) {
-      address1 = byte;
-      if (USART_receive_byte(&byte, 1)) {
-        address2 = byte;
-        return (address1<<8|address2);
-      }
-    }
-  }
-  return 0;
-}
-
->>>>>>> 1122d9d2bac2f76e104dc8e79407652cf77c6e66
 
 //return >=1 if succesful (data len), return 0 if not, e.g. crcr fails
-uint16_t USART_receive_package(uint16_t address, uint8_t *data)
+uint16_t USART_receive_package(uint16_t address, uint8_t* data)
 {
-  PORTD &= ~(1<<PORTD5); //receive mode for MAX
-  uint8_t byte, i;
-  uint16_t data_len = 0, crc;
+	PORTD &= ~(1<<PORTD5); //receive mode for MAX
+	uint8_t byte, parity;
+	uint16_t crc, myaddress = 0, data_len;
+    uint16_t i,j;
+while(1) {
 
-  while(1) {
-    if (USART_receive_address() != address) continue;
-    
-//    led_b++;
+parity = fifo_get_wait(&infifo);
+if (!parity) continue;
+byte = fifo_get_wait(&infifo);
+address = byte << 8;
 
-    if(! USART_receive_byte(&byte, 0)) return 0;
-    data_len = (byte << 8);
-    if(! USART_receive_byte(&byte, 0)) return 0;
-    data_len |= byte;
-//    led_w++;
-    uint8_t buffer[data_len];
-    for (i = 0; i < data_len; i++) {
-      if(! USART_receive_byte(&byte, 0)) return 0;
-      buffer[i] = byte;
-    }
-	led_b++;
-    byte = fifo_get_wait(&infifo);
-    crc = byte<<8;
-    byte = fifo_get_wait(&infifo);
-    crc |= byte;
-	led_w++;
-//    if (crc != checkcrc(buffer, sizeof buffer)) return 0;
+parity = fifo_get_wait(&infifo);
+if (!parity) continue;
+byte = fifo_get_wait(&infifo);
+address |= byte;
 
-    data = buffer;
-    return data_len;
+//TODO HANGS HERE
+if ( address != myaddress) continue;
+//DATA_LEN
+parity = fifo_get_wait(&infifo);
+if (parity) continue;
+byte = fifo_get_wait(&infifo);
+data_len = byte << 8;
+
+parity = fifo_get_wait(&infifo);
+if (parity) continue;
+byte = fifo_get_wait(&infifo);
+data_len |= byte;
+
+//DATA
+//uint8_t buffer[data_len]; //TODO NOT WORKING WITHOUT THIS - WHY??
+
+for (i = 0; i<data_len; i++) {
+ parity = fifo_get_wait(&infifo);
+ if (parity) break;
+ byte = fifo_get_wait(&infifo);
+ data[i] = byte;
+}
+if (i != data_len ) continue;
+
+//CRC
+parity = fifo_get_wait(&infifo);
+if (parity) continue;
+byte = fifo_get_wait(&infifo);
+crc = byte<<8;
+parity = fifo_get_wait(&infifo);
+if (parity) continue;
+byte = fifo_get_wait(&infifo);
+crc |= byte;
+
+return data_len;
+ }
+return 0;
 }
