@@ -139,20 +139,25 @@ void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
   uint16_t crc = checkcrc(data, data_len);
 
   //send address
-  fifo_put(&outfifo,1<<8|address>>8);
-  fifo_put(&outfifo,1<<8|address&0xFF);
+  fifo_put(&outfifo,1);
+  fifo_put(&outfifo,address>>8);
+  fifo_put(&outfifo,1);
+  fifo_put(&outfifo,address&0xFF);
 
   //send data_len
+  fifo_put(&outfifo,0);
   fifo_put(&outfifo,data_len>>8);
+  fifo_put(&outfifo,0);
   fifo_put(&outfifo,data_len&0xFF);
-
   //send data
   uint16_t i = data_len;
   while (i--) {
+    fifo_put(&outfifo,0);
     fifo_put(&outfifo,data[data_len-1-i]);
   }
-
+  fifo_put(&outfifo,0);
   fifo_put(&outfifo,crc>>8);
+  fifo_put(&outfifo,0);
   fifo_put(&outfifo,crc&0xFF);
 
     //init sending of package

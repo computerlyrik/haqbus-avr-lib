@@ -99,7 +99,9 @@ int main(void)
         led_g = rgbw[1];
         led_b = rgbw[2];
         led_w = rgbw[3];
-	//	USART_send_package(0,size,buffer);
+_delay_ms(500);
+     led_w++;
+		USART_send_package(0,4,rgbw);
 	}
 }
 
