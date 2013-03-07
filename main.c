@@ -43,19 +43,15 @@ uint8_t request_address(void) {
         uint16_t time, size;
 	while (count--) {
 		time = count*count;
-led_r=12;
 		while (time--) _delay_ms(10); //make sleeping longer each time
-led_g=time;
 		//send packet for address request
 		USART_send_package(0,1,&id);
 	    uint8_t buffer[12];
-led_b=12;
 		//receive data packet from server with address response
 		size= USART_receive_package(0,buffer);
 		if (buffer[0] == id) {
 			address = (buffer[1]<<8|buffer[2]);
 			//send ack
-    led_w=12;
 			USART_send_package(0,size,buffer);
 			return 1;
 		}
@@ -92,7 +88,12 @@ int main(void)
 	uint16_t size,i;
 
 	while (1) {
-request_address();
+     if (!address) request_address();
+            size = USART_receive_package(address,rgbw);
+        led_r = rgbw[0];
+        led_g = rgbw[1];
+        led_b = rgbw[2];
+        led_w = rgbw[3];
   }
 }
 

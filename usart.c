@@ -178,22 +178,22 @@ uint16_t USART_receive_package(uint16_t address, uint8_t* data)
 {
 //	PORTD &= ~(1<<PORTD5); //receive mode for MAX
 	uint8_t byte, parity;
-	uint16_t crc, myaddress = 0, data_len;
+	uint16_t crc, p_addr = 0, data_len;
     uint16_t i,j;
 while(1) {
 
 parity = fifo_get_wait(&infifo);
 if (!parity) continue;
 byte = fifo_get_wait(&infifo);
-address = byte << 8;
+p_addr = byte << 8;
 
 parity = fifo_get_wait(&infifo);
 if (!parity) continue;
 byte = fifo_get_wait(&infifo);
-address |= byte;
+p_addr |= byte;
 
 //TODO HANGS HERE
-if ( address != myaddress) continue;
+if ( address != p_addr) continue;
 
 //DATA_LEN
 parity = fifo_get_wait(&infifo);
