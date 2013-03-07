@@ -68,13 +68,6 @@ int main(void)
 
 	while (1) {
 		size = USART_receive_package(0,rgbw);
-        for (i=0; i<rgbw[0]; i++) {
-           led_b = 10;
-            _delay_ms(100);
-           led_b=0;
-            _delay_ms(100);
-        }
-
         led_r = rgbw[0];
         led_g = rgbw[1];
         led_b = rgbw[2];

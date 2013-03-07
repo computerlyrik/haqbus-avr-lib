@@ -131,7 +131,10 @@ if (!parity) continue;
 byte = fifo_get_wait(&infifo);
 address |= byte;
 
-if (! address == myaddress) continue;
+
+led_r=100;
+if ( address != myaddress) continue;
+led_g=100;
 //DATA_LEN
 parity = fifo_get_wait(&infifo);
 if (parity) continue;
@@ -144,7 +147,7 @@ byte = fifo_get_wait(&infifo);
 data_len |= byte;
 
 //DATA
-uint8_t buffer[data_len];
+uint8_t buffer[data_len]; //TODO NOT WORKING WITHOUT THIS - WHY??
 
 for (i = 0; i<data_len; i++) {
  parity = fifo_get_wait(&infifo);
@@ -152,7 +155,6 @@ for (i = 0; i<data_len; i++) {
  byte = fifo_get_wait(&infifo);
  data[i] = byte;
 }
-
 if (i != data_len ) continue;
  
 //CRC
@@ -164,16 +166,8 @@ parity = fifo_get_wait(&infifo);
 if (parity) continue;
 byte = fifo_get_wait(&infifo);
 crc |= byte;
-led_w=10;
-_delay_ms(200);
-//data = buffer;
-        for (i=0; i<data[0]; i++) {
-           led_g = 10;
-            _delay_ms(100);
-           led_g=0;
-            _delay_ms(100);
-        }
 
 return data_len;
  }
+return 0;
 }
