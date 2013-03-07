@@ -27,7 +27,6 @@ ISR (USART_UDRE_vect)
     uint8_t byte,parity;
 	// Warten, bis UDR bereit ist für einen neuen Wert mit parity
 	if (outfifo.count > 1) {
-		PORTD |= (1<<PORTD5); //send mode for MAX
 		parity = _inline_fifo_get (&outfifo);
 		byte = _inline_fifo_get (&outfifo);
 		if ( parity ) //if parity is wanted
@@ -37,6 +36,8 @@ ISR (USART_UDRE_vect)
 	}
 	else {
 		UCSR0B &= ~(1 << UDRIE0);
+        USART_flush();
+        _delay_ms(1);
 		PORTD &= ~(1<<PORTD5); //back to receive mode for MAX
 	}
 }
@@ -160,6 +161,7 @@ void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
   fifo_put(&outfifo,0);
   fifo_put(&outfifo,crc&0xFF);
 
+  PORTD |= (1<<PORTD5); //send mode for MAX
     //init sending of package
   UCSR0B |= (1 << UDRIE0);
 }
