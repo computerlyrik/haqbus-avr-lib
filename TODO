@@ -1,0 +1,3 @@
+- test crc check
+- timeout on avr if hanging in receive (especially, next address will be not decoded!)
+- make wiringpi reciever 9n1 work
