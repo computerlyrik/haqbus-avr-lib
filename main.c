@@ -100,7 +100,6 @@ int main(void)
         led_b = rgbw[2];
         led_w = rgbw[3];
 	//	USART_send_package(0,size,buffer);
-led_w++;
 	}
 }
 
