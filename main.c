@@ -40,25 +40,23 @@ ISR (TIMER0_OVF_vect)
 uint8_t request_address(void) {
 	uint8_t count = 23;
 	uint8_t id = rand() % 255;
-        uint16_t time;
+        uint16_t time, size;
 	while (count--) {
-		led_w = count; //DEBUG
 		time = count*count;
+led_r=12;
 		while (time--) _delay_ms(10); //make sleeping longer each time
-		led_b = 10;
+led_g=time;
 		//send packet for address request
-		uint8_t buffer[] = {id};
-		USART_send_package(0,sizeof buffer,buffer);
-		led_g = 10; //DEBUG
-				
+		USART_send_package(0,1,&id);
+	    uint8_t buffer[12];
+led_b=12;
 		//receive data packet from server with address response
-		if ( ! USART_receive_package(0,buffer)) continue;
-		led_w = 40; //DEBUG
+		size= USART_receive_package(0,buffer);
 		if (buffer[0] == id) {
-			led_w = 0; //DEBUG
 			address = (buffer[1]<<8|buffer[2]);
 			//send ack
-			USART_send_package(0,sizeof buffer,buffer);
+    led_w=12;
+			USART_send_package(0,size,buffer);
 			return 1;
 		}
 	}
@@ -94,17 +92,7 @@ int main(void)
 	uint16_t size,i;
 
 	while (1) {
-		size = USART_receive_package(0,rgbw);
-        led_r = rgbw[0];
-        led_g = rgbw[1];
-        led_b = rgbw[2];
-        led_w = rgbw[3];
-_delay_ms(800);
-     led_w=0;
-//    while(1){
-		USART_send_package(0,4,rgbw);
-_delay_ms(200);
-//	}
+request_address();
   }
 }
 

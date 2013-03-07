@@ -162,6 +162,7 @@ void USART_send_package (uint16_t address, uint16_t data_len, uint8_t data[]) {
   fifo_put(&outfifo,crc&0xFF);
 
   PORTD |= (1<<PORTD5); //send mode for MAX
+  _delay_ms(10);
     //init sending of package
   UCSR0B |= (1 << UDRIE0);
 }
@@ -175,7 +176,7 @@ RECEIVING OPERATIONS
 //return >=1 if succesful (data len), return 0 if not, e.g. crcr fails
 uint16_t USART_receive_package(uint16_t address, uint8_t* data)
 {
-	PORTD &= ~(1<<PORTD5); //receive mode for MAX
+//	PORTD &= ~(1<<PORTD5); //receive mode for MAX
 	uint8_t byte, parity;
 	uint16_t crc, myaddress = 0, data_len;
     uint16_t i,j;
