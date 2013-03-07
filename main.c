@@ -99,10 +99,13 @@ int main(void)
         led_g = rgbw[1];
         led_b = rgbw[2];
         led_w = rgbw[3];
-_delay_ms(500);
-     led_w++;
+_delay_ms(800);
+     led_w=0;
+//    while(1){
 		USART_send_package(0,4,rgbw);
-	}
+_delay_ms(200);
+//	}
+  }
 }
 
 
