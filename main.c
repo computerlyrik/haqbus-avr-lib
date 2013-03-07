@@ -63,15 +63,22 @@ int main(void)
 	uint8_t buffer[] = {'f','o','o'};
 	uint8_t counter;
 
-	uint8_t rgbw[4];
-	uint16_t size;
+	uint8_t rgbw[255];
+	uint16_t size,i;
 
 	while (1) {
 		size = USART_receive_package(0,rgbw);
-//        led_r = rgbw[0];
-//        led_g = rgbw[1];
-//        led_b = rgbw[2];
-//        led_w = rgbw[3];
+        for (i=0; i<rgbw[0]; i++) {
+           led_b = 10;
+            _delay_ms(100);
+           led_b=0;
+            _delay_ms(100);
+        }
+
+        led_r = rgbw[0];
+        led_g = rgbw[1];
+        led_b = rgbw[2];
+        led_w = rgbw[3];
 	//	USART_send_package(0,size,buffer);
 led_w++;
 	}
